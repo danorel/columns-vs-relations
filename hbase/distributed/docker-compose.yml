@@ -77,17 +77,30 @@ services:
     ports:
       - 16010:16010
 
-  hbase-region:
+  hbase-regionserver:
     image: bde2020/hbase-regionserver:1.0.0-hbase1.2.6
     container_name: hbase-regionserver
     hostname: hbase-regionserver
     env_file:
       - ./hbase.env
     environment:
-      HBASE_CONF_hbase_regionserver_hostname: hbase-region
+      HBASE_CONF_hbase_regionserver_hostname: hbase-regionserver
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075 zoo:2181 hbase-master:16010"
     ports:
       - 16030:16030
+
+  hbase-thrift:
+    image: bde2020/hbase-regionserver:1.0.0-hbase1.2.6
+    container_name: hbase-thrift
+    hostname: hbase-thrift
+    command: hbase thrift start -p 9090
+    env_file:
+      - ./hbase.env
+    environment:
+      HBASE_CONF_hbase_regionserver_hostname: hbase-thrift
+      SERVICE_PRECONDITION: "namenode:50070 datanode:50075 zoo:2181 hbase-master:16010"
+    ports:
+      - 9090:9090
 
 volumes:
   hadoop_namenode:
