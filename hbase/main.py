@@ -1,30 +1,47 @@
 import random
 import string
-
 import happybase
 
 from typing import List
 
 
+def random_bytes(
+        range_from: int = 0,
+        range_to: int = 1,
+        instance: str = "int"):
+    value = random_value(range_from, range_to, instance)
+    return str.encode(str(value))
+
+
+def random_value(range_from: int = 0,
+                 range_to: int = 1,
+                 instance: str = "int"):
+    value = range_from + (random.random() * (range_to - range_from))
+    if instance == "str":
+        return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(round(value)))
+    if instance == "int":
+        return round(value)
+    return value
+
+
 class DatabaseGenerator:
     def __init__(self, N: int):
         self.N = N
-        self.data: List[dict] = []
 
-    def randomize(self, columns: list, column_family: str) -> List[dict]:
-        self.data = []
+    def random_data(self, columns: list, column_family: str) -> List[dict]:
+        data = []
         cache = {}
         for _ in range(self.N):
             record = {}
             for column in columns:
+                key = str.encode(column_family + ":" + column.get('name'))
+                value = random_bytes(
+                    range_from=column.get('range_from'),
+                    range_to=column.get('range_to'),
+                    instance=column.get('instance')
+                )
                 if column.get('cache'):
-                    key = str.encode(column_family + ":" + column.get('name'))
                     if len(cache.keys()) == 0 or random.random() > 0.5:
-                        value = DatabaseGenerator.random_bytes(
-                            range_from=column.get('range_from'),
-                            range_to=column.get('range_to'),
-                            instance=column.get('instance')
-                        )
                         record[key] = value
                         cache[key] = value
                     else:
@@ -33,27 +50,13 @@ class DatabaseGenerator:
                         cache_index = round(random.random() * (cache_size - 1))
                         cache_key = cache_keys[cache_index]
                         record[key] = cache.get(cache_key)
-            self.data.append(record)
-        return self.data
+                else:
+                    record[key] = value
+            data.append(record)
+        return data
 
-    @staticmethod
-    def random_bytes(
-            range_from: int = 0,
-            range_to: int = 1,
-            instance: str = "int"):
-        value = DatabaseGenerator.random_value(range_from, range_to, instance)
-        return str.encode(str(value))
-
-    @staticmethod
-    def random_value(range_from: int = 0,
-                     range_to: int = 1,
-                     instance: str = "int"):
-        value = range_from + (random.random() * (range_to - range_from))
-        if instance == "str":
-            return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(round(value)))
-        if instance == "int":
-            return round(value)
-        return value
+    def __repr__(self):
+        return f"Database generator: {self.N}"
 
 
 class DatabaseManager:
@@ -86,7 +89,7 @@ class DatabaseManager:
     def generate_data(self):
         for table_metadata in self.tables_metadata:
             table = self.connection.table(name=table_metadata.get('name'))
-            data = self.generator.randomize(
+            data = self.generator.random_data(
                 column_family=list(table_metadata.get('families').keys()).pop(),
                 columns=table_metadata.get('columns')
             )
