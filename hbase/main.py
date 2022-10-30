@@ -6,7 +6,7 @@ import happybase
 
 from typing import List
 
-from time_it import time_it
+from time_it import time_it_average
 
 
 def random_bytes(
@@ -122,25 +122,47 @@ class DatabaseManager:
         return f"Tables: {self.connection.tables()}"
 
 
-@time_it(description="#1: Count of total sold goods")
+@time_it_average(description="#1: Count of total sold goods", N=100)
 def count_total_amount_of_goods(dm: DatabaseManager):
     table = dm.connection.table('shop_goods')
     records = table.scan()
     count = 0
     for row_key, row_data in records:
         key = str.encode("cf:amount")
-        count += int.from_bytes(bytes=row_data[key], byteorder="little")
+        count += int(row_data[key])
     pass
 
 
-@time_it(description="#2: Count of total value of goods")
+@time_it_average(description="#2: Count of total value of goods", N=100)
 def count_total_value_of_goods(dm: DatabaseManager):
     table = dm.connection.table('shop_goods')
     records = table.scan()
     count = 0
     for row_key, row_data in records:
         key = str.encode("cf:price")
-        count += int.from_bytes(bytes=row_data[key], byteorder="little")
+        count += float(row_data[key])
+    pass
+
+
+@time_it_average(description="#3: Count of total value of goods in period", N=100)
+def count_total_value_of_goods_in_period(dm: DatabaseManager):
+    table = dm.connection.table('shop_goods')
+    records = table.scan(filter="SingleColumnValueFilter('cf','date',>,'binary:1635614046')")
+    count = 0
+    for row_key, row_data in records:
+        key = str.encode("cf:price")
+        count += float(row_data[key])
+    pass
+
+
+@time_it_average(description="#4: Count of total value of goods in period", N=100)
+def count_total_value_of_goods_in_period(dm: DatabaseManager):
+    table = dm.connection.table('shop_goods')
+    records = table.scan(filter="SingleColumnValueFilter('cf','date',>,'binary:1635614046')")
+    count = 0
+    for row_key, row_data in records:
+        key = str.encode("cf:price")
+        count += float(row_data[key])
     pass
 
 
@@ -189,6 +211,7 @@ def main():
     # Requests
     count_total_amount_of_goods(dm)
     count_total_value_of_goods(dm)
+    count_total_value_of_goods_in_period(dm)
 
 
 if __name__ == "__main__":
