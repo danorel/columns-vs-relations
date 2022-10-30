@@ -1,8 +1,12 @@
 import random
 import string
+import struct
+
 import happybase
 
 from typing import List
+
+from time_it import time_it
 
 
 def random_bytes(
@@ -118,6 +122,28 @@ class DatabaseManager:
         return f"Tables: {self.connection.tables()}"
 
 
+@time_it(description="#1: Count of total sold goods")
+def count_total_amount_of_goods(dm: DatabaseManager):
+    table = dm.connection.table('shop_goods')
+    records = table.scan()
+    count = 0
+    for row_key, row_data in records:
+        key = str.encode("cf:amount")
+        count += int.from_bytes(bytes=row_data[key], byteorder="little")
+    pass
+
+
+@time_it(description="#2: Count of total value of goods")
+def count_total_value_of_goods(dm: DatabaseManager):
+    table = dm.connection.table('shop_goods')
+    records = table.scan()
+    count = 0
+    for row_key, row_data in records:
+        key = str.encode("cf:price")
+        count += int.from_bytes(bytes=row_data[key], byteorder="little")
+    pass
+
+
 def main():
     generator = DatabaseGenerator(N=1000)
     dm = DatabaseManager(
@@ -160,6 +186,9 @@ def main():
         generator=generator
     )
     dm.generate_data()
+    # Requests
+    count_total_amount_of_goods(dm)
+    count_total_value_of_goods(dm)
 
 
 if __name__ == "__main__":
