@@ -34,6 +34,7 @@ def time_it_average(description, N=1):
                 average_time += run_time
             average_time /= N
             print("Test {}".format(description))
+            print("Result: {}".format(values.pop()))
             print("Average time of {} is {} secs".format(repr(func.__name__), round(average_time, 3)))
             return values
 
