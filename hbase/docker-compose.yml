@@ -1,6 +1,23 @@
 version: "3"
 
 services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    container_name: server
+    depends_on:
+      - namenode
+      - datanode
+      - resourcemanager
+      - historyserver
+      - hbase-master
+      - hbase-regionserver
+      - hbase-thrift
+    ports:
+      - "8080:8080"
+
   namenode:
     image: bde2020/hadoop-namenode:2.0.0-hadoop2.7.4-java8
     container_name: namenode
@@ -9,9 +26,9 @@ services:
     environment:
       - CLUSTER_NAME=test
     env_file:
-      - ../hadoop.env
+      - envs/hadoop.env
     ports:
-      - 50070:50070
+      - "50070:50070"
 
   datanode:
     image: bde2020/hadoop-datanode:2.0.0-hadoop2.7.4-java8
@@ -21,9 +38,9 @@ services:
     environment:
       SERVICE_PRECONDITION: "namenode:50070"
     env_file:
-      - ../hadoop.env
+      - envs/hadoop.env
     ports:
-      - 50075:50075
+      - "50075:50075"
 
   resourcemanager:
     image: bde2020/hadoop-resourcemanager:2.0.0-hadoop2.7.4-java8
@@ -31,9 +48,9 @@ services:
     environment:
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075"
     env_file:
-      - ../hadoop.env
+      - envs/hadoop.env
     ports:
-      - 8088:8088
+      - "8088:8088"
 
   nodemanager1:
     image: bde2020/hadoop-nodemanager:2.0.0-hadoop2.7.4-java8
@@ -41,9 +58,9 @@ services:
     environment:
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075 resourcemanager:8088"
     env_file:
-      - ../hadoop.env
+      - envs/hadoop.env
     ports:
-      - 8042:8042
+      - "8042:8042"
 
   historyserver:
     image: bde2020/hadoop-historyserver:2.0.0-hadoop2.7.4-java8
@@ -53,9 +70,9 @@ services:
     environment:
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075 resourcemanager:8088"
     env_file:
-      - ../hadoop.env
+      - envs/hadoop.env
     ports:
-      - 8188:8188
+      - "8188:8188"
 
   zoo:
     image: zookeeper:3.4.10
@@ -64,30 +81,30 @@ services:
       ZOO_MY_ID: 1
       ZOO_SERVERS: server.1=0.0.0.0:2888:3888
     ports:
-      - 2181:2181
+      - "2181:2181"
 
   hbase-master:
     image: bde2020/hbase-master:1.0.0-hbase1.2.6
     container_name: hbase-master
     hostname: hbase-master
     env_file:
-      - ./hbase.env
+      - envs/hbase.env
     environment:
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075 zoo:2181"
     ports:
-      - 16010:16010
+      - "16010:16010"
 
   hbase-regionserver:
     image: bde2020/hbase-regionserver:1.0.0-hbase1.2.6
     container_name: hbase-regionserver
     hostname: hbase-regionserver
     env_file:
-      - ./hbase.env
+      - envs/hbase.env
     environment:
       HBASE_CONF_hbase_regionserver_hostname: hbase-regionserver
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075 zoo:2181 hbase-master:16010"
     ports:
-      - 16030:16030
+      - "16030:16030"
 
   hbase-thrift:
     image: bde2020/hbase-regionserver:1.0.0-hbase1.2.6
@@ -95,12 +112,12 @@ services:
     hostname: hbase-thrift
     command: hbase thrift start -p 9090
     env_file:
-      - ./hbase.env
+      - envs/hbase.env
     environment:
       HBASE_CONF_hbase_regionserver_hostname: hbase-thrift
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075 zoo:2181 hbase-master:16010 hbase-regionserver:16030"
     ports:
-      - 9090:9090
+      - "9090:9090"
 
 volumes:
   hadoop_namenode:
