@@ -98,7 +98,7 @@ services:
       - ./hbase.env
     environment:
       HBASE_CONF_hbase_regionserver_hostname: hbase-thrift
-      SERVICE_PRECONDITION: "namenode:50070 datanode:50075 zoo:2181 hbase-master:16010"
+      SERVICE_PRECONDITION: "namenode:50070 datanode:50075 zoo:2181 hbase-master:16010 hbase-regionserver:16030"
     ports:
       - 9090:9090
 

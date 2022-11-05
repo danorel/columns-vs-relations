@@ -3,9 +3,12 @@ import string
 import happybase
 
 from typing import List
+from pathlib import Path
+from hdfs import InsecureClient
 
-from data_structures import DualPriorityQueue
 from time_it import time_it_average
+from map_reduce_jobs import MRTop10TwoGoodsCount
+from map_reduce_runner import runJob
 
 
 def random_bytes(
@@ -201,17 +204,26 @@ def count_total_profit_in_shops_by_period_C(dm: DatabaseManager):
 def show_top10_by_two_goods_by_period_C(dm: DatabaseManager):
     table = dm.connection.table('shop_goods')
     records = table.scan(filter="SingleColumnValueFilter('cf','date',>,'binary:1635614046')")
-    mpq = DualPriorityQueue(maxPQ=True)
-    for row_key, row_data in records:
-        key_amount = str.encode("cf:amount")
-        key_good = str.encode("cf:good")
-        value_amount = int(row_data[key_amount].decode('ascii'))
-        value_good = row_data[key_good].decode('ascii')
-        mpq.put(value_amount, value_good)
-    top10 = "\n"
-    for _ in range(10):
-        topmost = mpq.get()
-        top10 += f"{topmost}\n"
+
+    local_input_filename = "temp/count-by-two-goods.input.txt"
+    local_input_file = Path(local_input_filename)
+    local_input_file.parent.mkdir(exist_ok=True, parents=True)
+    local_input_file.write_text(str(list(records)))
+
+    try:
+        client_hdfs = InsecureClient('http://localhost:50070', user="root")
+        client_hdfs.makedirs("data")
+        client_hdfs.upload(hdfs_path="user/root/data", local_path=local_input_filename)
+        runJob(
+            MRJobClass=MRTop10TwoGoodsCount,
+            argsArr=['/user/root/data/count-by-two-goods.input.txt', '--output-dir=/user/root/data/output'],
+            loc='hadoop'
+        )
+        with client_hdfs.read('/temp/hbase/count-by-two-goods.output.txt') as reader:
+            top10 = reader.read()
+    except Exception as e:
+        print("Error:", e)
+
     return top10
 
 
@@ -265,12 +277,12 @@ def main():
     )
     dm.generate_data()
     # Requests
-    count_total_amount_of_goods(dm)
-    count_total_value_of_goods(dm)
-    count_total_value_of_goods_by_period(dm)
-    count_total_value_of_goods_A_in_shop_B_by_period_C(dm)
-    count_total_value_of_goods_A_in_shops_by_period_C(dm)
-    count_total_profit_in_shops_by_period_C(dm)
+    # count_total_amount_of_goods(dm)
+    # count_total_value_of_goods(dm)
+    # count_total_value_of_goods_by_period(dm)
+    # count_total_value_of_goods_A_in_shop_B_by_period_C(dm)
+    # count_total_value_of_goods_A_in_shops_by_period_C(dm)
+    # count_total_profit_in_shops_by_period_C(dm)
     show_top10_by_two_goods_by_period_C(dm)
 
 
