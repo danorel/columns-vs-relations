@@ -17,6 +17,8 @@ services:
       - hbase-thrift
     ports:
       - "8080:8080"
+    volumes:
+      - '.:/app'
 
   namenode:
     image: bde2020/hadoop-namenode:2.0.0-hadoop2.7.4-java8

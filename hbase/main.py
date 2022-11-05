@@ -2,15 +2,14 @@ import random
 import string
 import sys
 import happybase
-import pyhdfs
 
 from typing import List
-from pathlib import Path
-from flask import Flask
+from hdfs import InsecureClient
 
-from utils.time_it import time_it_average
-
-app = Flask(__name__)
+from server import app
+from time_it import time_it_average
+from mr.mr_runner import runJob
+from mr.mr_jobs import MRTop10TwoGoodsCount
 
 
 def random_bytes(
@@ -80,10 +79,13 @@ class DatabaseManager:
         self.generator = generator
         try:
             self.connection = happybase.Connection(
+                host="hbase-thrift",
+                port=9090,
                 table_prefix=application,
                 autoconnect=True
             )
         except Exception as e:
+            app.logger.critical(f"Connection error: {e}")
             raise RuntimeError(f"Connection error: {e}")
 
         self.tables_metadata: List[dict] = tables_metadata
@@ -96,7 +98,7 @@ class DatabaseManager:
                     families=families
                 )
         except Exception as e:
-            print(f"Table creation error: {e}")
+            app.logger.error(f"Table creation error: {e}")
 
     def generate_data(self):
         for table_metadata in self.tables_metadata:
@@ -111,7 +113,7 @@ class DatabaseManager:
                     key = str.encode(str(i))
                     batch.put(key, entry)
             except Exception as e:
-                print(f"Send error: {e}")
+                app.logger.error(f"Send error: {e}")
             else:
                 batch.send()
 
@@ -123,7 +125,7 @@ class DatabaseManager:
                 self.connection.delete_table(name)
             self.connection.close()
         except Exception as e:
-            print(f"Table removal error: {e}")
+            app.logger.error(f"Table removal error: {e}")
 
     def __repr__(self):
         return f"Tables: {self.connection.tables()}"
@@ -206,35 +208,32 @@ def show_top10_by_two_goods_by_period_C(dm: DatabaseManager):
     table = dm.connection.table('shop_goods')
     records = table.scan(filter="SingleColumnValueFilter('cf','date',>,'binary:1635614046')")
 
-    local_input_filename = "temp/count-by-two-goods.input.txt"
-    local_input_file = Path(local_input_filename)
-    local_input_file.parent.mkdir(exist_ok=True, parents=True)
-    local_input_file.write_text(str(list(records)))
-
-    hadoop_input_dir = "/user/root/data"
+    hadoop_base_dir = "/user/root/data"
+    hadoop_input_filepath = f'{hadoop_base_dir}/"count-by-two-goods.input"'
+    hadoop_output_filepath = f'{hadoop_base_dir}/"count-by-two-goods.output"'
 
     try:
-        client_hdfs = pyhdfs.HdfsClient(hosts='localhost:50070', user_name='root')
-        client_hdfs.mkdirs(hadoop_input_dir)
-        print("Dir status:", client_hdfs.list_status(hadoop_input_dir))
-        if client_hdfs.exists(hadoop_input_dir):
-            client_hdfs.create(f'{hadoop_input_dir}/file', 'hi!')
-            print("File status:", client_hdfs.get_file_status(f'{hadoop_input_dir}/file'))
-            # upload_path = client_hdfs.upload(
-            #     hdfs_path=hadoop_input_dir,
-            #     local_path=local_input_filename
-            # )
-            # print("Upload path:", upload_path)
-        # runJob(
-        #     MRJobClass=MRTop10TwoGoodsCount,
-        #     argsArr=['/user/root/data/count-by-two-goods.input.txt', '--output-dir=/user/root/data/output'],
-        #     loc='hadoop'
-        # )
-        # with client_hdfs.read('/temp/hbase/count-by-two-goods.output.txt') as reader:
-        #     top10 = reader.read()
-        # client_hdfs.delete("data")
+        client_hdfs = InsecureClient(url='http://namenode:50070', user='root')
+        client_hdfs.makedirs(hadoop_base_dir)
+        if len(client_hdfs.list(hadoop_base_dir)) == 0:
+            if client_hdfs.status(hadoop_input_filepath) is None:
+                with client_hdfs.write(hadoop_input_filepath, encoding='utf-8') as writer:
+                    writer.write(bytes(list(records)))
+                runJob(
+                    MRJobClass=MRTop10TwoGoodsCount,
+                    argsArr=[hadoop_input_filepath, f'--output-dir={hadoop_output_filepath}'],
+                    loc='hadoop'
+                )
+                with client_hdfs.read(hadoop_output_filepath) as reader:
+                    top10 = reader.read()
+                    app.logger.info(f"Top10: {top10}")
+            if client_hdfs.exists(hadoop_input_filepath):
+                client_hdfs.delete(hadoop_input_filepath)
+            if len(client_hdfs.list(hadoop_base_dir)) == 0:
+                client_hdfs.delete(hadoop_base_dir)
     except Exception as e:
         _, _, tb = sys.exc_info()
+        app.logger.critical(f"HDFS Error: {e.with_traceback(tb)}")
         raise RuntimeError(f"HDFS Error: {e.with_traceback(tb)}")
 
     return None
@@ -306,4 +305,5 @@ def index():
 
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=8080)
+    app.logger.error(f"Start flask application on port 8080")
+    app.run(host='0.0.0.0', port=8080, debug=True)

@@ -3,20 +3,17 @@ FROM python:3.8-alpine
 # The latest alpine images don't have some tools like (`git` and `bash`).
 # Adding git, bash and openssh to the image
 RUN apk update && apk upgrade && \
-    apk add --no-cache python3-dev bash git openssh gcc
+    apk add --no-cache python3-dev bash git openssh gcc g++
 
 # Make dir app
 RUN mkdir /app
 WORKDIR /app
-COPY requirements.txt requirements.txt
-
-RUN pip3 install -r requirements.txt
 
 # Copy the source from the current directory to the Working Directory inside the container
-COPY . .
+COPY * /app/
 
-
-COPY . .
+# Install dependencies
+RUN pip3 install -r requirements.txt
 
 # Expose port 8080 to the outside world
 EXPOSE 8080

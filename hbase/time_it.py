@@ -1,6 +1,8 @@
 import functools
 import time
 
+from server import app
+
 
 def time_it_once(description):
     def decorator(func):
@@ -33,9 +35,9 @@ def time_it_average(description, N=1):
                 run_time = end_time - start_time
                 average_time += run_time
             average_time /= N
-            print("Test {}".format(description))
-            print("Result: {}".format(values.pop()))
-            print("Average time of {} is {} secs".format(repr(func.__name__), round(average_time, 3)))
+            app.logger.info("Test {}".format(description))
+            app.logger.info("Result: {}".format(values.pop()))
+            app.logger.info("Average time of {} is {} secs".format(repr(func.__name__), round(average_time, 3)))
             return values
 
         return wrapper
