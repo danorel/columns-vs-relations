@@ -6,10 +6,10 @@ import happybase
 from typing import List
 from hdfs import InsecureClient
 
-from server import app
-from time_it import time_it_average
-from mr.mr_runner import runJob
-from mr.mr_jobs import MRTop10TwoGoodsCount
+from core.server import app
+from core.stopwatch import time_it_average
+from core.mr.runner import runJob
+from core.mr.jobs import MRTop10TwoGoodsCount
 
 
 def random_bytes(
@@ -301,7 +301,8 @@ def main():
 
 @app.route("/")
 def index():
-    return main()
+    main()
+    return "Success!"
 
 
 if __name__ == "__main__":

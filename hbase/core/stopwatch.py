@@ -1,7 +1,7 @@
 import functools
 import time
 
-from server import app
+from .server import app
 
 
 def time_it_once(description):

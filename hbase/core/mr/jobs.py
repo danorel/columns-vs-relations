@@ -1,6 +1,7 @@
 from abc import ABC
-
 from mrjob.job import MRJob
+
+from ..server import app
 
 
 class MRTop10TwoGoodsCount(MRJob, ABC):
@@ -11,8 +12,5 @@ class MRTop10TwoGoodsCount(MRJob, ABC):
         yield "lines", 1
 
     def reducer(self, key, values):
+        app.logger.info(f"Sum of values: {sum(values)}")
         yield key, sum(values)
-
-
-if __name__ == '__main__':
-    MRTop10TwoGoodsCount.run()
