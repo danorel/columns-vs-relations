@@ -209,28 +209,27 @@ def show_top10_by_two_goods_by_period_C(dm: DatabaseManager):
     records = table.scan(filter="SingleColumnValueFilter('cf','date',>,'binary:1635614046')")
 
     hadoop_base_dir = "/user/root/data"
-    hadoop_input_filepath = f'{hadoop_base_dir}/"count-by-two-goods.input"'
-    hadoop_output_filepath = f'{hadoop_base_dir}/"count-by-two-goods.output"'
+    hadoop_input_filepath = f'{hadoop_base_dir}/count-by-two-goods.input'
+    hadoop_output_filepath = f'{hadoop_base_dir}/count-by-two-goods.output'
 
     try:
         client_hdfs = InsecureClient(url='http://namenode:50070', user='root')
+        # Temporal delete operation meant for development
+        client_hdfs.delete(hadoop_input_filepath)
         client_hdfs.makedirs(hadoop_base_dir)
+        app.logger.info(f"List: {client_hdfs.list(hadoop_base_dir)}")
         if len(client_hdfs.list(hadoop_base_dir)) == 0:
-            if client_hdfs.status(hadoop_input_filepath) is None:
-                with client_hdfs.write(hadoop_input_filepath, encoding='utf-8') as writer:
-                    writer.write(bytes(list(records)))
-                runJob(
-                    MRJobClass=MRTop10TwoGoodsCount,
-                    argsArr=[hadoop_input_filepath, f'--output-dir={hadoop_output_filepath}'],
-                    loc='hadoop'
-                )
-                with client_hdfs.read(hadoop_output_filepath) as reader:
-                    top10 = reader.read()
-                    app.logger.info(f"Top10: {top10}")
-            if client_hdfs.exists(hadoop_input_filepath):
-                client_hdfs.delete(hadoop_input_filepath)
-            if len(client_hdfs.list(hadoop_base_dir)) == 0:
-                client_hdfs.delete(hadoop_base_dir)
+            with client_hdfs.write(hadoop_input_filepath, encoding='utf-8') as writer:
+                writer.write(str(list(records)))
+            my_job, my_runner = runJob(
+                MRJobClass=MRTop10TwoGoodsCount,
+                args_arr=[hadoop_input_filepath, f'--output-dir={hadoop_output_filepath}'],
+                runner='hadoop'
+            )
+            for line in my_runner.stream_output():
+                app.logger.info(f"Job output: {my_job.parse_output_line(line)}")
+            client_hdfs.delete(hadoop_input_filepath)
+            client_hdfs.delete(hadoop_base_dir)
     except Exception as e:
         _, _, tb = sys.exc_info()
         app.logger.critical(f"HDFS Error: {e.with_traceback(tb)}")
@@ -306,5 +305,4 @@ def index():
 
 
 if __name__ == "__main__":
-    app.logger.error(f"Start flask application on port 8080")
     app.run(host='0.0.0.0', port=8080, debug=True)

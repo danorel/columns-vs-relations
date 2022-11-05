@@ -1,13 +1,12 @@
 from ..server import app
 
 
-def runJob(MRJobClass, argsArr, loc='local'):
-    if loc == 'emr':
-        argsArr.extend(['-r', 'emr'])
-    app.logger.info("Starting %s job on %s" % (MRJobClass.__name__, loc))
-    mrJob = MRJobClass(args=argsArr)
-    runner = mrJob.make_runner()
+def runJob(MRJobClass, args_arr, runner='hadoop'):
+    args_arr.extend(['-r', runner])
+    app.logger.info("Starting %s job on %s" % (MRJobClass.__name__, type))
+    job = MRJobClass(args=args_arr)
+    runner = job.make_runner()
     runner.run()
     app.logger.info("Finished %s job" % MRJobClass.__name__)
-    return mrJob, runner
+    return job, runner
 
