@@ -1,0 +1,50 @@
+version: "3"
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    container_name: server
+    depends_on:
+      - postgres
+      - pgadmin
+    ports:
+      - "8080:8080"
+    volumes:
+      - '.:/app'
+
+  postgres:
+    image: postgres:14.1-alpine
+    restart: unless-stopped
+    container_name: postgres
+    env_file:
+      - envs/db.env
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres:/data/postgres
+
+  pgadmin:
+    image: dpage/pgadmin4
+    restart: unless-stopped
+    container_name: pgadmin
+    depends_on:
+      - postgres
+    env_file:
+      - envs/db.env
+    volumes:
+      - pgadmin:/var/lib/pgadmin
+    ports:
+      - "5050:5050"
+    networks:
+      - postgres
+
+networks:
+  postgres:
+    driver: bridge
+
+volumes:
+  postgres:
+  pgadmin:

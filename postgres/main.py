@@ -1,15 +1,11 @@
 import random
 import string
-import sys
-import happybase
+import psycopg2
 
 from typing import List
-from hdfs import InsecureClient
 
 from core.server import app
 from core.stopwatch import time_it_average
-from core.mr.runner import runJob
-from core.mr.jobs import MRTop10TwoGoodsCount
 
 
 def random_bytes(
@@ -78,12 +74,11 @@ class DatabaseManager:
         self.application = application
         self.generator = generator
         try:
-            self.connection = happybase.Connection(
-                host="hbase-thrift",
-                port=9090,
-                table_prefix=application,
-                autoconnect=True
+            self.connection = psycopg2.connect(
+                host='postgres',
+                port=3123
             )
+            self.cursor = self.connection.cursor()
         except Exception as e:
             app.logger.critical(f"Connection error: {e}")
             raise RuntimeError(f"Connection error: {e}")
@@ -207,33 +202,6 @@ def count_total_profit_in_shops_by_period_C(dm: DatabaseManager):
 def show_top10_by_two_goods_by_period_C(dm: DatabaseManager):
     table = dm.connection.table('shop_goods')
     records = table.scan(filter="SingleColumnValueFilter('cf','date',>,'binary:1635614046')")
-
-    hadoop_base_dir = "/user/root/data"
-    hadoop_input_filepath = f'{hadoop_base_dir}/count-by-two-goods.input'
-    hadoop_output_filepath = f'{hadoop_base_dir}/count-by-two-goods.output'
-
-    try:
-        client_hdfs = InsecureClient(url='http://namenode:50070', user='root')
-        # Temporal delete operation meant for development
-        client_hdfs.delete(hadoop_input_filepath)
-        client_hdfs.makedirs(hadoop_base_dir)
-        if len(client_hdfs.list(hadoop_base_dir)) == 0:
-            with client_hdfs.write(hadoop_input_filepath, encoding='utf-8') as writer:
-                writer.write(str(list(records)))
-            my_job, my_runner = runJob(
-                MRJobClass=MRTop10TwoGoodsCount,
-                args_arr=[hadoop_input_filepath, f'--output-dir={hadoop_output_filepath}'],
-                runner='hadoop'
-            )
-            for line in my_runner.stream_output():
-                app.logger.info(f"Job output: {my_job.parse_output_line(line)}")
-            client_hdfs.delete(hadoop_input_filepath)
-            client_hdfs.delete(hadoop_base_dir)
-    except Exception as e:
-        _, _, tb = sys.exc_info()
-        app.logger.critical(f"HDFS Error: {e.with_traceback(tb)}")
-        raise RuntimeError(f"HDFS Error: {e.with_traceback(tb)}")
-
     return None
 
 
