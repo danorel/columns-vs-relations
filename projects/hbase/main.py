@@ -1,134 +1,13 @@
-import random
-import string
 import sys
-import happybase
 
-from typing import List
 from hdfs import InsecureClient
 
 from core.server import app
-from core.stopwatch import time_it_average
+from core.db import DatabaseManager
 from core.mr.runner import runJob
 from core.mr.jobs import MRTop10TwoGoodsCount
-
-
-def random_bytes(
-        range_from: int = 0,
-        range_to: int = 1,
-        instance: str = "int"):
-    value = random_value(range_from, range_to, instance)
-    return str.encode(str(value))
-
-
-def random_value(range_from: int = 0,
-                 range_to: int = 1,
-                 instance: str = "int"):
-    value = range_from + (random.random() * (range_to - range_from))
-    if instance == "str":
-        return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(round(value)))
-    if instance == "int":
-        return round(value)
-    return value
-
-
-class DatabaseGenerator:
-    def __init__(self, N: int):
-        self.N = N
-
-    def random_data(self, columns: list, column_family: str) -> List[dict]:
-        data = []
-        cache = {}
-        for _ in range(self.N):
-            record = {}
-            for column in columns:
-                key_encoded = str.encode(column_family + ":" + column.get('name'))
-                value_encoded = random_bytes(
-                    range_from=column.get('range_from'),
-                    range_to=column.get('range_to'),
-                    instance=column.get('instance')
-                )
-                if column.get('cache'):
-                    column_cache = cache.get(key_encoded)
-                    active_cache = column_cache is not None and len(column_cache) > 0
-                    if not active_cache:
-                        record[key_encoded] = value_encoded
-                        cache[key_encoded] = [value_encoded]
-                    else:
-                        if random.random() > 0.5:
-                            column_cache_index = round(random.random() * (len(column_cache) - 1))
-                            column_cache_value = column_cache[column_cache_index]
-                            record[key_encoded] = column_cache_value
-                        else:
-                            record[key_encoded] = value_encoded
-                            column_cache.append(value_encoded)
-                else:
-                    record[key_encoded] = value_encoded
-            data.append(record)
-        return data
-
-    def __repr__(self):
-        return f"Database generator: {self.N}"
-
-
-class DatabaseManager:
-    def __init__(self,
-                 application: str,
-                 tables_metadata: List[dict],
-                 generator: DatabaseGenerator):
-        self.application = application
-        self.generator = generator
-        try:
-            self.connection = happybase.Connection(
-                host="hbase-thrift",
-                port=9090,
-                table_prefix=application,
-                autoconnect=True
-            )
-        except Exception as e:
-            app.logger.critical(f"Connection error: {e}")
-            raise RuntimeError(f"Connection error: {e}")
-
-        self.tables_metadata: List[dict] = tables_metadata
-        try:
-            for table_metadata in tables_metadata:
-                name = table_metadata.get('name')
-                families = table_metadata.get('families')
-                self.connection.create_table(
-                    name=name,
-                    families=families
-                )
-        except Exception as e:
-            app.logger.error(f"Table creation error: {e}")
-
-    def generate_data(self):
-        for table_metadata in self.tables_metadata:
-            table = self.connection.table(name=table_metadata.get('name'))
-            data = self.generator.random_data(
-                column_family=list(table_metadata.get('families').keys()).pop(),
-                columns=table_metadata.get('columns')
-            )
-            batch = table.batch()
-            try:
-                for i, entry in enumerate(data):
-                    key = str.encode(str(i))
-                    batch.put(key, entry)
-            except Exception as e:
-                app.logger.error(f"Send error: {e}")
-            else:
-                batch.send()
-
-    def __del__(self):
-        try:
-            for table_metadata in self.tables_metadata:
-                name = table_metadata.get('name')
-                self.connection.disable_table(name)
-                self.connection.delete_table(name)
-            self.connection.close()
-        except Exception as e:
-            app.logger.error(f"Table removal error: {e}")
-
-    def __repr__(self):
-        return f"Tables: {self.connection.tables()}"
+from libs.shared.db import DatabaseGenerator
+from libs.shared.stopwatch import time_it_average
 
 
 @time_it_average(description="#1: Count of total sold goods", N=100)

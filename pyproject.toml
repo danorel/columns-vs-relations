@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "columns-vs-relations"
+version = "0.1.0"
+description = "Columns vs Relation"
+authors = ["danorel <mail.ordan@gmail.com>"]
+license = "Apache License"
+readme = "README.md"
+packages = [
+    {include = "projects/hbase"},g
+    {include = "projects/postgres"},
+    {include = "libs/shared"}
+]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+Flask = "2.2.2"
+psycopg2 = "^2.9.5"
+happybase = "^1.2.0"
+hdfs = "2.7.0"
+mrjob = "0.7.4"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

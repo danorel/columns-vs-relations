@@ -3,8 +3,8 @@ version: "3"
 services:
   server:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../projects/hbase
+      dockerfile: ../projects/hbase/Dockerfile.hbase
     restart: unless-stopped
     container_name: server
     depends_on:
@@ -28,7 +28,7 @@ services:
     environment:
       - CLUSTER_NAME=test
     env_file:
-      - envs/hadoop.env
+      - ../projects/hbase/envs/hadoop.env
     ports:
       - "50070:50070"
 
@@ -40,7 +40,7 @@ services:
     environment:
       SERVICE_PRECONDITION: "namenode:50070"
     env_file:
-      - envs/hadoop.env
+      - ../projects/hbase/envs/hadoop.env
     ports:
       - "50075:50075"
 
@@ -50,7 +50,7 @@ services:
     environment:
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075"
     env_file:
-      - envs/hadoop.env
+      - ../projects/hbase/envs/hadoop.env
     ports:
       - "8088:8088"
 
@@ -60,7 +60,7 @@ services:
     environment:
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075 resourcemanager:8088"
     env_file:
-      - envs/hadoop.env
+      - ../projects/hbase/envs/hadoop.env
     ports:
       - "8042:8042"
 
@@ -72,7 +72,7 @@ services:
     environment:
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075 resourcemanager:8088"
     env_file:
-      - envs/hadoop.env
+      - ../projects/hbase/envs/hadoop.env
     ports:
       - "8188:8188"
 
@@ -90,7 +90,7 @@ services:
     container_name: hbase-master
     hostname: hbase-master
     env_file:
-      - envs/hbase.env
+      - ../projects/hbase/envs/hbase.env
     environment:
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075 zoo:2181"
     ports:
@@ -101,7 +101,7 @@ services:
     container_name: hbase-regionserver
     hostname: hbase-regionserver
     env_file:
-      - envs/hbase.env
+      - ../projects/hbase/envs/hbase.env
     environment:
       HBASE_CONF_hbase_regionserver_hostname: hbase-regionserver
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075 zoo:2181 hbase-master:16010"
@@ -114,7 +114,7 @@ services:
     hostname: hbase-thrift
     command: hbase thrift start -p 9090
     env_file:
-      - envs/hbase.env
+      - ../projects/hbase/envs/hbase.env
     environment:
       HBASE_CONF_hbase_regionserver_hostname: hbase-thrift
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075 zoo:2181 hbase-master:16010 hbase-regionserver:16030"
