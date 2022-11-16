@@ -107,13 +107,12 @@ class DatabaseManager:
             try:
                 for i, entry in enumerate(data):
                     values = [entry[column['name']] for column in columns]
-                    mock_columns = ','.join([column['name'] for column in columns])
-                    mock_placeholders = ','.join([f"%s" for _ in range(1, len(values) + 1)])
-                    self.cursor.execute(f"INSERT INTO public.{name} ({mock_columns}) VALUES ({mock_placeholders});", tuple(values))
+                    columns_names = ','.join([column['name'] for column in columns])
+                    placeholders = ','.join([f"%s" for _ in range(1, len(values) + 1)])
+                    self.cursor.execute(f"INSERT INTO public.{name} ({columns_names}) VALUES ({placeholders});", tuple(values))
+                    self.connection.commit()
             except Exception as e:
                 app.logger.error(f"Send error: {e}")
-            else:
-                self.connection.commit()
 
     def __del__(self):
         try:
@@ -129,84 +128,84 @@ class DatabaseManager:
     def __repr__(self):
         return f"Tables: {self.connection.tables()}"
 
-
 @time_it_average(description="#1: Count of total sold goods", N=100)
 def count_total_amount_of_goods(dm: DatabaseManager):
-    table = dm.connection.table('shop_goods')
-    records = table.scan()
-    count = 0
-    for row_key, row_data in records:
-        key = str.encode("cf:amount")
-        count += int(row_data[key])
-    return count
+    dm.cursor.execute("""
+        SELECT SUM(amount)
+        FROM public.shop_goods
+    """)
+    [total_amount] = dm.cursor.fetchone()
+    return total_amount
 
 
 @time_it_average(description="#2: Count of total value of goods", N=100)
 def count_total_value_of_goods(dm: DatabaseManager):
-    table = dm.connection.table('shop_goods')
-    records = table.scan()
-    count = 0
-    for row_key, row_data in records:
-        key_price = str.encode("cf:price")
-        key_amount = str.encode("cf:amount")
-        count += (float(row_data[key_price]) * float(row_data[key_amount]))
-    return count
+    dm.cursor.execute("""
+            SELECT SUM(price)
+            FROM public.shop_goods
+        """)
+    [total_price] = dm.cursor.fetchone()
+    return total_price
 
 
 @time_it_average(description="#3: Count of total value of goods by period C", N=100)
 def count_total_value_of_goods_by_period(dm: DatabaseManager):
-    table = dm.connection.table('shop_goods')
-    records = table.scan(filter="SingleColumnValueFilter('cf','date',>,'binary:1635614046')")
-    count = 0
-    for row_key, row_data in records:
-        key_price = str.encode("cf:price")
-        key_amount = str.encode("cf:amount")
-        count += (float(row_data[key_price]) * float(row_data[key_amount]))
-    return count
+    dm.cursor.execute("""
+                SELECT SUM(price)
+                FROM public.shop_goods
+                WHERE date > 1635614046
+            """)
+    [total_price_by_period] = dm.cursor.fetchone()
+    return total_price_by_period
 
 
 @time_it_average(description="#4: Count of total amount of goods A in shop B by period C", N=100)
 def count_total_value_of_goods_A_in_shop_B_by_period_C(dm: DatabaseManager):
-    table = dm.connection.table('shop_goods')
-    records = table.scan(filter="(SingleColumnValueFilter('cf','date',>,'binary:1635614046')AND"
-                                "(SingleColumnValueFilter('cf','shop',=,'substring:A'))AND"
-                                "(SingleColumnValueFilter('cf','good',=,'substring:C')))")
-    count = 0
-    for row_key, row_data in records:
-        key = str.encode("cf:amount")
-        count += int(row_data[key])
-    return count
+    dm.cursor.execute("""
+                    SELECT SUM(amount)
+                    FROM public.shop_goods
+                    WHERE date > 1635614046 AND
+                          shop ~ '^A.*$'    AND
+                          good ~ '^C.*$'
+                """)
+    [total_price_of_good_in_shop_by_period] = dm.cursor.fetchone()
+    return total_price_of_good_in_shop_by_period or 0
 
 
 @time_it_average(description="#5: Count of total amount of goods A in all shops by period C", N=100)
 def count_total_value_of_goods_A_in_shops_by_period_C(dm: DatabaseManager):
-    table = dm.connection.table('shop_goods')
-    records = table.scan(filter="(SingleColumnValueFilter('cf','date',>,'binary:1635614046')AND"
-                                "(SingleColumnValueFilter('cf','good',=,'substring:C')))")
-    count = 0
-    for row_key, row_data in records:
-        key = str.encode("cf:amount")
-        count += int(row_data[key])
-    return count
+    dm.cursor.execute("""
+                        SELECT SUM(amount)
+                        FROM public.shop_goods
+                        WHERE date > 1635614046 AND
+                              good ~ '^C.*$'
+                    """)
+    [total_price_of_good_in_all_shops_by_period] = dm.cursor.fetchone()
+    return total_price_of_good_in_all_shops_by_period
 
 
 @time_it_average(description="#6: Count of total profit of all shops by period C", N=100)
 def count_total_profit_in_shops_by_period_C(dm: DatabaseManager):
-    table = dm.connection.table('shop_goods')
-    records = table.scan(filter="SingleColumnValueFilter('cf','date',>,'binary:1635614046')")
-    count = 0
-    for row_key, row_data in records:
-        key_amount = str.encode("cf:amount")
-        key_price = str.encode("cf:price")
-        count += (int(row_data[key_amount]) * float(row_data[key_price]))
-    return count
+    dm.cursor.execute("""
+                            SELECT SUM(price * amount)
+                            FROM public.shop_goods
+                            WHERE date > 1635614046
+                        """)
+    [total_price_of_good_in_all_shops_by_period] = dm.cursor.fetchone()
+    return total_price_of_good_in_all_shops_by_period
 
 
 @time_it_average(description="#7: Show top-10 by two goods by period C", N=100)
 def show_top10_by_two_goods_by_period_C(dm: DatabaseManager):
-    table = dm.connection.table('shop_goods')
-    records = table.scan(filter="SingleColumnValueFilter('cf','date',>,'binary:1635614046')")
-    return None
+    dm.cursor.execute("""
+                                SELECT good, SUM(price * amount) as good_value
+                                FROM public.shop_goods
+                                WHERE date > 1635614046
+                                GROUP BY good
+                                ORDER BY good_value DESC
+                            """)
+    top10_goods = dm.cursor.fetchmany(10)
+    return ','.join([f"{good}:{good_value}" for (good, good_value) in top10_goods])
 
 
 def main():
@@ -260,15 +259,13 @@ def main():
         generator=generator
     )
     dm.generate_data()
-    # Working requests
-    # count_total_amount_of_goods(dm)
-    # count_total_value_of_goods(dm)
-    # count_total_value_of_goods_by_period(dm)
-    # count_total_value_of_goods_A_in_shop_B_by_period_C(dm)
-    # count_total_value_of_goods_A_in_shops_by_period_C(dm)
-    # count_total_profit_in_shops_by_period_C(dm)
-    # TODO: Apply MapReduce to work out grouping requests
-    # show_top10_by_two_goods_by_period_C(dm)
+    count_total_amount_of_goods(dm)
+    count_total_value_of_goods(dm)
+    count_total_value_of_goods_by_period(dm)
+    count_total_value_of_goods_A_in_shop_B_by_period_C(dm)
+    count_total_value_of_goods_A_in_shops_by_period_C(dm)
+    count_total_profit_in_shops_by_period_C(dm)
+    show_top10_by_two_goods_by_period_C(dm)
     return None
 
 
