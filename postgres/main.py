@@ -109,7 +109,8 @@ class DatabaseManager:
                     values = [entry[column['name']] for column in columns]
                     columns_names = ','.join([column['name'] for column in columns])
                     placeholders = ','.join([f"%s" for _ in range(1, len(values) + 1)])
-                    self.cursor.execute(f"INSERT INTO public.{name} ({columns_names}) VALUES ({placeholders});", tuple(values))
+                    self.cursor.execute(f"INSERT INTO public.{name} ({columns_names}) VALUES ({placeholders});",
+                                        tuple(values))
                     self.connection.commit()
             except Exception as e:
                 app.logger.error(f"Send error: {e}")
@@ -127,6 +128,7 @@ class DatabaseManager:
 
     def __repr__(self):
         return f"Tables: {self.connection.tables()}"
+
 
 @time_it_average(description="#1: Count of total sold goods", N=100)
 def count_total_amount_of_goods(dm: DatabaseManager):
@@ -209,7 +211,7 @@ def show_top10_by_two_goods_by_period_C(dm: DatabaseManager):
 
 
 def main():
-    generator = DatabaseGenerator(N=1000)
+    generator = DatabaseGenerator(N=10000)
     dm = DatabaseManager(
         application="hbase",
         tables_metadata=[

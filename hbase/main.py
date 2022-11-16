@@ -149,8 +149,7 @@ def count_total_value_of_goods(dm: DatabaseManager):
     count = 0
     for row_key, row_data in records:
         key_price = str.encode("cf:price")
-        key_amount = str.encode("cf:amount")
-        count += (float(row_data[key_price]) * float(row_data[key_amount]))
+        count += float(row_data[key_price])
     return count
 
 
@@ -160,9 +159,8 @@ def count_total_value_of_goods_by_period(dm: DatabaseManager):
     records = table.scan(filter="SingleColumnValueFilter('cf','date',>,'binary:1635614046')")
     count = 0
     for row_key, row_data in records:
-        key_price = str.encode("cf:price")
         key_amount = str.encode("cf:amount")
-        count += (float(row_data[key_price]) * float(row_data[key_amount]))
+        count += int(row_data[key_amount])
     return count
 
 
@@ -238,7 +236,7 @@ def show_top10_by_two_goods_by_period_C(dm: DatabaseManager):
 
 
 def main():
-    generator = DatabaseGenerator(N=1000)
+    generator = DatabaseGenerator(N=10000)
     dm = DatabaseManager(
         application="hbase",
         tables_metadata=[
