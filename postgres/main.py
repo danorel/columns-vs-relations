@@ -31,13 +31,13 @@ class DatabaseGenerator:
     def __init__(self, N: int):
         self.N = N
 
-    def random_data(self, columns: list, column_family: str) -> List[dict]:
+    def random_data(self, columns: list) -> List[dict]:
         data = []
         cache = {}
         for _ in range(self.N):
             record = {}
             for column in columns:
-                key_encoded = str.encode(column_family + ":" + column.get('name'))
+                key_encoded = str.encode(column.get('name'))
                 value_encoded = random_bytes(
                     range_from=column.get('range_from'),
                     range_to=column.get('range_to'),
@@ -76,7 +76,9 @@ class DatabaseManager:
         try:
             self.connection = psycopg2.connect(
                 host='postgres',
-                port=3123
+                port=5432,
+                user="postgres",
+                password="admin"
             )
             self.cursor = self.connection.cursor()
         except Exception as e:
@@ -87,21 +89,28 @@ class DatabaseManager:
         try:
             for table_metadata in tables_metadata:
                 name = table_metadata.get('name')
-                families = table_metadata.get('families')
-                self.connection.create_table(
-                    name=name,
-                    families=families
-                )
+                self.cursor.execute(f"""
+                    SELECT EXISTS(
+                        SELECT * 
+                        FROM information_schema.tables 
+                        WHERE table_catalog = 'postgres' AND
+                              table_schema = 'public' AND
+                              table_name = '{name}'
+                    );
+                """)
+                [name_exists] = self.cursor.fetchone()
+                if not name_exists:
+                    columns = table_metadata.get('columns')
+                    definitions = ','.join([column['definition'] for column in columns])
+                    self.cursor.execute(f"CREATE TABLE {name} (id serial PRIMARY KEY, {definitions});")
+                    self.connection.commit()
         except Exception as e:
             app.logger.error(f"Table creation error: {e}")
 
     def generate_data(self):
         for table_metadata in self.tables_metadata:
-            table = self.connection.table(name=table_metadata.get('name'))
-            data = self.generator.random_data(
-                column_family=list(table_metadata.get('families').keys()).pop(),
-                columns=table_metadata.get('columns')
-            )
+            table = self.cursor.execute(name=table_metadata.get('name'))
+            data = self.generator.random_data(columns=table_metadata.get('columns'))
             batch = table.batch()
             try:
                 for i, entry in enumerate(data):
@@ -116,9 +125,10 @@ class DatabaseManager:
         try:
             for table_metadata in self.tables_metadata:
                 name = table_metadata.get('name')
-                self.connection.disable_table(name)
-                self.connection.delete_table(name)
+                app.logger.info(f"DROP TABLE {name};")
+                self.cursor.execute(f"DROP TABLE {name};")
             self.connection.close()
+            self.cursor.close()
         except Exception as e:
             app.logger.error(f"Table removal error: {e}")
 
@@ -212,12 +222,10 @@ def main():
         tables_metadata=[
             {
                 'name': 'shop_goods',
-                'families': {
-                    'cf': dict()
-                },
                 'columns': [
                     {
                         'name': 'shop',
+                        'definition': 'shop varchar',
                         'instance': 'str',
                         'range_from': 5,
                         'range_to': 10,
@@ -225,6 +233,7 @@ def main():
                     },
                     {
                         'name': 'good',
+                        'definition': 'good varchar',
                         'instance': 'str',
                         'range_from': 5,
                         'range_to': 10,
@@ -232,18 +241,21 @@ def main():
                     },
                     {
                         'name': 'price',
+                        'definition': 'price float',
                         'instance': 'float',
                         'range_from': 1,
                         'range_to': 1000
                     },
                     {
                         'name': 'amount',
+                        'definition': 'amount integer',
                         'instance': 'int',
                         'range_from': 1,
                         'range_to': 100
                     },
                     {
                         'name': 'date',
+                        'definition': 'date integer',
                         'instance': 'int',
                         'range_from': 1604044475,
                         'range_to': 1667123676
@@ -255,12 +267,12 @@ def main():
     )
     dm.generate_data()
     # Working requests
-    count_total_amount_of_goods(dm)
-    count_total_value_of_goods(dm)
-    count_total_value_of_goods_by_period(dm)
-    count_total_value_of_goods_A_in_shop_B_by_period_C(dm)
-    count_total_value_of_goods_A_in_shops_by_period_C(dm)
-    count_total_profit_in_shops_by_period_C(dm)
+    # count_total_amount_of_goods(dm)
+    # count_total_value_of_goods(dm)
+    # count_total_value_of_goods_by_period(dm)
+    # count_total_value_of_goods_A_in_shop_B_by_period_C(dm)
+    # count_total_value_of_goods_A_in_shops_by_period_C(dm)
+    # count_total_profit_in_shops_by_period_C(dm)
     # TODO: Apply MapReduce to work out grouping requests
     # show_top10_by_two_goods_by_period_C(dm)
     return None
