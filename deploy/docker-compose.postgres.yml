@@ -12,15 +12,13 @@ services:
       - pgadmin
     ports:
       - "8080:8080"
-    volumes:
-      - '.:/app'
 
   postgres:
     image: postgres:14.1-alpine
     restart: unless-stopped
     container_name: postgres
     env_file:
-      - envs/db.env
+      - ../projects/postgres/envs/db.env
     ports:
       - '5432:5432'
     volumes:
@@ -33,7 +31,7 @@ services:
     depends_on:
       - postgres
     env_file:
-      - envs/db.env
+      - ../projects/postgres/envs/db.env
     volumes:
       - pgadmin:/var/lib/pgadmin
     ports:
