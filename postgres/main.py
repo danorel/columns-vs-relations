@@ -8,14 +8,6 @@ from core.server import app
 from core.stopwatch import time_it_average
 
 
-def random_bytes(
-        range_from: int = 0,
-        range_to: int = 1,
-        instance: str = "int"):
-    value = random_value(range_from, range_to, instance)
-    return str.encode(str(value))
-
-
 def random_value(range_from: int = 0,
                  range_to: int = 1,
                  instance: str = "int"):
@@ -37,28 +29,28 @@ class DatabaseGenerator:
         for _ in range(self.N):
             record = {}
             for column in columns:
-                key_encoded = str.encode(column.get('name'))
-                value_encoded = random_bytes(
+                key = column.get('name')
+                value = random_value(
                     range_from=column.get('range_from'),
                     range_to=column.get('range_to'),
                     instance=column.get('instance')
                 )
                 if column.get('cache'):
-                    column_cache = cache.get(key_encoded)
+                    column_cache = cache.get(key)
                     active_cache = column_cache is not None and len(column_cache) > 0
                     if not active_cache:
-                        record[key_encoded] = value_encoded
-                        cache[key_encoded] = [value_encoded]
+                        record[key] = value
+                        cache[key] = [value]
                     else:
                         if random.random() > 0.5:
                             column_cache_index = round(random.random() * (len(column_cache) - 1))
                             column_cache_value = column_cache[column_cache_index]
-                            record[key_encoded] = column_cache_value
+                            record[key] = column_cache_value
                         else:
-                            record[key_encoded] = value_encoded
-                            column_cache.append(value_encoded)
+                            record[key] = value
+                            column_cache.append(value)
                 else:
-                    record[key_encoded] = value_encoded
+                    record[key] = value
             data.append(record)
         return data
 
@@ -101,32 +93,34 @@ class DatabaseManager:
                 [name_exists] = self.cursor.fetchone()
                 if not name_exists:
                     columns = table_metadata.get('columns')
-                    definitions = ','.join([column['definition'] for column in columns])
-                    self.cursor.execute(f"CREATE TABLE {name} (id serial PRIMARY KEY, {definitions});")
+                    definition = ','.join([column['definition'] for column in columns])
+                    self.cursor.execute(f"CREATE TABLE {name} (id serial PRIMARY KEY, {definition});")
                     self.connection.commit()
         except Exception as e:
             app.logger.error(f"Table creation error: {e}")
 
     def generate_data(self):
         for table_metadata in self.tables_metadata:
-            table = self.cursor.execute(name=table_metadata.get('name'))
-            data = self.generator.random_data(columns=table_metadata.get('columns'))
-            batch = table.batch()
+            name = table_metadata.get('name')
+            columns = table_metadata.get('columns')
+            data = self.generator.random_data(columns=columns)
             try:
                 for i, entry in enumerate(data):
-                    key = str.encode(str(i))
-                    batch.put(key, entry)
+                    values = [entry[column['name']] for column in columns]
+                    mock_columns = ','.join([column['name'] for column in columns])
+                    mock_placeholders = ','.join([f"%s" for _ in range(1, len(values) + 1)])
+                    self.cursor.execute(f"INSERT INTO public.{name} ({mock_columns}) VALUES ({mock_placeholders});", tuple(values))
             except Exception as e:
                 app.logger.error(f"Send error: {e}")
             else:
-                batch.send()
+                self.connection.commit()
 
     def __del__(self):
         try:
             for table_metadata in self.tables_metadata:
                 name = table_metadata.get('name')
-                app.logger.info(f"DROP TABLE {name};")
                 self.cursor.execute(f"DROP TABLE {name};")
+                self.connection.commit()
             self.connection.close()
             self.cursor.close()
         except Exception as e:
